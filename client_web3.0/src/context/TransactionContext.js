@@ -31,12 +31,38 @@ export const TransactionProvider = ({ children }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [transactionCount, setTransactionCount] = useState(0);
+  const [transactions, setTransactions] = useState([]);
 
   const handleChange = (e, name) => {
     setFormData((prevState) => ({
       ...prevState, [name]: e.target.value
     }));
   };
+
+  const getAllTransactions = async () => {
+    try {
+      if (!ethereum) return alert("Please install MetaMask Chrome Extension!");
+      
+      const transactionContract = getEthereumContract();
+      const availableTransaction = await transactionContract.getAllTransactions();
+
+      const structuredTransactions = availableTransaction.map(transaction => ({
+          addressTo: transaction.receiver,
+          addressFrom: transaction.sender,
+          timestamp: new Date(transaction.timestamp.toNumber() * 1000).toLocaleString(),
+          message: transaction.message,
+          keyword: transaction.keyword,
+          amount: parseInt(transaction.amount._hex) / (10 ** 18)
+        })
+      )
+
+      setTransactions(structuredTransactions);
+
+      // console.log(structuredTransactions);
+    } catch (e) {
+      console.log(e);
+    } 
+  }
 
   const checkIfWalletIsConnected = async () => {
     try {
@@ -49,7 +75,7 @@ export const TransactionProvider = ({ children }) => {
         setCurrentAccount(accounts[0]);
 
         // Get all transactions
-        // getAllTransactions();
+        getAllTransactions();
       } else {
         console.log("no accounts found");
       }
@@ -57,6 +83,18 @@ export const TransactionProvider = ({ children }) => {
       console.log(e);
       throw new Error("No Ethereum Object");
     }    
+  }
+
+  const checkIfTransactionsExist = async () => {
+    try {
+      const transactionContract = getEthereumContract();
+      const transactionCount = await transactionContract.getTransactionCount();
+
+      window.localStorage.setItem("transactionCount", transactionCount);
+    } catch (e) {
+      console.log(e);
+      throw new Error("No Ethereum Object");
+    }
   }
 
   const connectWallet = async () => {
@@ -69,6 +107,7 @@ export const TransactionProvider = ({ children }) => {
 
   useEffect(() => {
     checkIfWalletIsConnected();
+    checkIfTransactionsExist();
   }, []);
 
   const sendTransaction = async () => {
@@ -108,7 +147,18 @@ export const TransactionProvider = ({ children }) => {
   }
 
   return (
-    <TransactionContext.Provider value={{ connectWallet, currentAccount, formData, setFormData, handleChange, sendTransaction }}>
+    <TransactionContext.Provider 
+      value={{ 
+        transactionCount,
+        connectWallet, 
+        transactions,
+        currentAccount, 
+        formData, 
+        setFormData, 
+        handleChange, 
+        sendTransaction 
+      }}
+    >
       {children}
     </TransactionContext.Provider>
   )
